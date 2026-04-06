@@ -235,12 +235,13 @@ input[type=range]::-webkit-slider-thumb {
     <div class="slider-row"><label class="slider-label">Sleep quality</label><input type="range" min="0" max="10" step="1" value="6" id="s-sleepq" oninput="sv(this,'v-sleepq')"><span class="slider-val" id="v-sleepq">6</span></div>
     <div class="slider-row"><label class="slider-label">Exercise (min)</label><input type="range" min="0" max="180" step="5" value="0" id="s-exercise" oninput="sv(this,'v-exercise')"><span class="slider-val" id="v-exercise">0</span></div>
     <div class="slider-row"><label class="slider-label">Caffeine (mg)</label><input type="range" min="0" max="600" step="25" value="100" id="s-caffeine" oninput="sv(this,'v-caffeine')"><span class="slider-val" id="v-caffeine">100</span></div>
-    <div class="slider-row"><label class="slider-label">Alcohol (units)</label><input type="range" min="0" max="10" step="0.5" value="0" id="s-alcohol" oninput="sv(this,'v-alcohol')"><span class="slider-val" id="v-alcohol">0</span></div>
+
 
     <div class="sec-label">Other</div>
     <div class="check-group">
       <div class="check-row"><label>Took medication</label><div class="yn-wrap"><button class="yn-btn no-active" id="med-no" onclick="setYN('medication',false)">No</button><button class="yn-btn" id="med-yes" onclick="setYN('medication',true)">Yes</button></div></div>
-      <div class="check-row"><label>Period / hormonal</label><div class="yn-wrap"><button class="yn-btn no-active" id="period-no" onclick="setYN('period',false)">No</button><button class="yn-btn" id="period-yes" onclick="setYN('period',true)">Yes</button></div></div>
+      <div class="check-row"><label>Period</label><div class="yn-wrap"><button class="yn-btn no-active" id="period-no" onclick="setYN('period',false)">No</button><button class="yn-btn" id="period-yes" onclick="setYN('period',true)">Yes</button></div></div>
+      <div class="check-row"><label>Spotting</label><div class="yn-wrap"><button class="yn-btn no-active" id="spotting-no" onclick="setYN('spotting',false)">No</button><button class="yn-btn" id="spotting-yes" onclick="setYN('spotting',true)">Yes</button></div></div>
       <div class="check-row"><label>High stress day</label><div class="yn-wrap"><button class="yn-btn no-active" id="stress-no" onclick="setYN('stress',false)">No</button><button class="yn-btn" id="stress-yes" onclick="setYN('stress',true)">Yes</button></div></div>
     </div>
 
@@ -340,7 +341,7 @@ function setYN(key, val) {
 }
 
 // init all YN to false
-['headache','constipation','diarrhea','medication','period','stress'].forEach(k => setYN(k, false));
+['headache','constipation','diarrhea','medication','period','spotting','stress'].forEach(k => setYN(k, false));
 
 function getSlider(id) { return parseFloat(document.getElementById('s-'+id).value); }
 
@@ -365,9 +366,9 @@ function saveEntry() {
     sleepq: getSlider('sleepq'),
     exercise: getSlider('exercise'),
     caffeine: getSlider('caffeine'),
-    alcohol: getSlider('alcohol'),
     medication: YN_STATE.medication ? 1 : 0,
     period: YN_STATE.period ? 1 : 0,
+    spotting: YN_STATE.spotting ? 1 : 0,
     stress: YN_STATE.stress ? 1 : 0,
   };
   const entries = getEntries().filter(e => e.date !== entry.date);
@@ -521,8 +522,8 @@ function renderTrendChart(entries) {
 }
 
 // --- Lag heatmap ---
-const BEHAV_KEYS = ['sleep','sleepq','exercise','caffeine','alcohol','stress','medication'];
-const BEHAV_LABELS = ['Sleep hrs','Sleep quality','Exercise','Caffeine','Alcohol','Stress','Medication'];
+const BEHAV_KEYS = ['sleep','sleepq','exercise','caffeine','stress','medication'];
+const BEHAV_LABELS = ['Sleep hrs','Sleep quality','Exercise','Caffeine','Stress','Medication'];
 const SYMPTOM_KEYS = ['fatigue','mood','anxiety','depression','irritability','fog','concentration','headache','stomach','lowbp'];
 const SYMPTOM_LABELS = ['Fatigue','Mood','Anxiety','Depression','Irritability','Brain fog','Concentration','Headache','Stomach','Low BP'];
 
