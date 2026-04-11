@@ -279,8 +279,14 @@ html,body{min-height:100%;background:var(--bg);font-family:'Nunito',sans-serif;c
       <button class="data-btn" onclick="exportCSV()">Export CSV</button>
       <button class="data-btn" onclick="exportJSON()">Export JSON</button>
     </div>
+    <div class="sec-label">Import from Bearable</div>
+    <div class="info-box">Export from the Bearable app: <strong style="color:var(--t1)">Profile &rarr; Export Data &rarr; Export as CSV</strong>. Import the file here to merge your historical data.<br><br>Fields mapped: mood, fatigue, anxiety, depression, irritability, difficulty concentrating, low blood pressure, constipation, diarrhoea, headache, stomach, sleep, sleep quality, medication, period, spotting, stress, caffeine, steps.</div>
+    <button class="data-btn" style="margin-bottom:4px;" onclick="document.getElementById('bearable-file-input').click()">Import Bearable CSV</button>
+    <input type="file" id="bearable-file-input" accept=".csv" onchange="importBearable(event)">
+    <div id="bearable-import-status" style="font-size:12px;color:var(--t3);font-weight:600;padding:6px 0;"></div>
+
     <div class="sec-label">Garmin Connect import</div>
-    <div class="info-box">Garmin requires a backend for direct sync, so import works via CSV export from <strong style="color:var(--t1)">Garmin Connect</strong> on your computer.<br><br>Go to Health Stats → Export CSV (sleep or activities), then import here. Sleep and exercise will be merged into matching dates.</div>
+    <div class="info-box">Go to Garmin Connect &rarr; Health Stats &rarr; Export CSV (sleep or activities), then import here. Sleep and exercise will be merged into matching dates.</div>
     <button class="data-btn" style="margin-bottom:4px;" onclick="document.getElementById('garmin-file-input').click()">Import Garmin CSV</button>
     <input type="file" id="garmin-file-input" accept=".csv" onchange="importGarmin(event)">
     <div id="import-status"></div>
@@ -578,6 +584,187 @@ function exportCSV(){
 }
 function exportJSON(){dl('symptom_log.json',JSON.stringify(getEntries(),null,2),'application/json');}
 function dl(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;a.click();}
+
+
+// ── Bearable import ──
+function parseBearableCSV(text) {
+  // Robust CSV parser handling quoted fields with embedded commas/newlines
+  const rows = [];
+  let i = 0;
+  while (i < text.length) {
+    const row = [];
+    while (i < text.length) {
+      if (text[i] === '"') {
+        i++; let cell = '';
+        while (i < text.length) {
+          if (text[i] === '"' && text[i+1] === '"') { cell += '"'; i += 2; }
+          else if (text[i] === '"') { i++; break; }
+          else { cell += text[i++]; }
+        }
+        row.push(cell);
+      } else {
+        let cell = '';
+        while (i < text.length && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') cell += text[i++];
+        row.push(cell.trim());
+      }
+      if (i < text.length && text[i] === ',') i++;
+      else break;
+    }
+    while (i < text.length && (text[i] === '\n' || text[i] === '\r')) i++;
+    if (row.some(c => c !== '')) rows.push(row);
+  }
+  return rows;
+}
+
+function importBearable(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const statusEl = document.getElementById('bearable-import-status');
+    try {
+      const rows = parseBearableCSV(e.target.result);
+      if (rows.length < 2) { statusEl.textContent = 'Could not parse file.'; return; }
+
+      // headers: date, date formatted, weekday, time of day, category, rating/amount, detail, notes
+      // col indices: 0=date_text, 1=date_iso, 2=weekday, 3=time, 4=category, 5=rating, 6=detail, 7=notes
+
+      // Group all rows by YYYY-MM-DD
+      const byDate = {};
+      for (let r = 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (row.length < 5) continue;
+        const dateIso = row[1].trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) continue;
+        if (!byDate[dateIso]) byDate[dateIso] = [];
+        byDate[dateIso].push(row);
+      }
+
+      const entries = getEntries();
+      let imported = 0;
+
+      // Bearable 1-3 severity → 0-10
+      function sev3to10(v) { return Math.round((parseFloat(v)||0) / 3 * 10); }
+      // Bearable mood 1-10 → keep as-is (same scale)
+      function moodScale(v) { return Math.min(10, Math.max(0, parseFloat(v)||0)); }
+      // Sleep quality 1-5 → 0-10
+      function sleepQScale(v) { return Math.round((parseFloat(v)||0) / 5 * 10); }
+      // Parse "H:MM" or "HH:MM" sleep duration to decimal hours
+      function parseSleepHrs(s) {
+        const m = s.match(/(\d+):(\d{2})/);
+        if (!m) return null;
+        return parseFloat(m[1]) + parseFloat(m[2]) / 60;
+      }
+      // Symptom name normaliser
+      function normSymptom(detail) {
+        const d = detail.toLowerCase();
+        if (d.includes('fatigue')) return 'fatigue';
+        if (d.includes('anxiety')) return 'anxiety';
+        if (d.includes('depression')) return 'depression';
+        if (d.includes('irritability')) return 'irritability';
+        if (d.includes('difficulty concentrating') || d.includes('concentration')) return 'concentration';
+        if (d.includes('low blood pressure')) return 'lowbp';
+        if (d.includes('constipation')) return 'constipation_sev';
+        if (d.includes('diarrhoea') || d.includes('diarrhea')) return 'diarrhea_sev';
+        if (d.includes('headache')) return 'headache';
+        if (d.includes('stomach') || d.includes('nausea') || d.includes('bloating')) return 'stomach';
+        if (d.includes('brain fog')) return 'fog';
+        return null;
+      }
+      // Lifestyle detail stress/caffeine parser
+      function parseLifestyle(detail) {
+        const result = {};
+        const stressMatch = detail.match(/stress\s*-\s*(\w[\w ]*)/i);
+        if (stressMatch) {
+          const lvl = stressMatch[1].trim().toLowerCase();
+          result.stress = (lvl === 'a lot' || lvl === 'high') ? 1 : 0;
+        }
+        const caffMatch = detail.match(/caffeine\s*-\s*(\w[\w ]*)/i);
+        if (caffMatch) {
+          const lvl = caffMatch[1].trim().toLowerCase();
+          result.coffee = (lvl === 'none' || lvl === 'nothing') ? 0 : 1;
+        }
+        return result;
+      }
+
+      Object.entries(byDate).forEach(([date, rows]) => {
+        const ex = entries.find(en => en.date === date);
+        const entry = ex || { date, ts: Date.now() };
+
+        // Accumulators for averaging
+        const moodVals = [], symptomMax = {};
+
+        rows.forEach(row => {
+          const cat = (row[4]||'').trim();
+          const rating = (row[5]||'').trim();
+          const detail = (row[6]||'').trim();
+
+          if (cat === 'Mood') {
+            const v = parseFloat(rating);
+            if (!isNaN(v)) moodVals.push(moodScale(v));
+          }
+          else if (cat === 'Symptom') {
+            const key = normSymptom(detail);
+            if (key) {
+              const v = sev3to10(rating);
+              if (!symptomMax[key] || v > symptomMax[key]) symptomMax[key] = v;
+            }
+          }
+          else if (cat === 'Sleep' && rating.includes(':') && !detail.includes('Device') && !detail.includes('Bedtime') && !detail.includes('Early')) {
+            const hrs = parseSleepHrs(rating);
+            if (hrs !== null) entry.sleep = parseFloat(hrs.toFixed(2));
+          }
+          else if (cat === 'Sleep quality') {
+            const v = parseFloat(rating);
+            if (!isNaN(v)) entry.sleepq = sleepQScale(v);
+          }
+          else if (cat === 'Meds/Supplements') {
+            entry.medication = 1;
+          }
+          else if (cat === 'Period') {
+            entry.period = rating === 'Period' ? 1 : 0;
+            if (detail.includes('Spotting')) entry.spotting = 1;
+          }
+          else if (cat === 'Lifestyle') {
+            const ls = parseLifestyle(detail);
+            if (ls.stress !== undefined) entry.stress = ls.stress;
+            if (ls.coffee !== undefined) entry.coffee = ls.coffee;
+          }
+          else if (cat === 'Health measurements' && detail.includes('Step count')) {
+            const v = parseFloat(rating);
+            if (!isNaN(v)) entry.steps = v;
+          }
+        });
+
+        if (moodVals.length) entry.mood = parseFloat((moodVals.reduce((a,b)=>a+b)/moodVals.length).toFixed(1));
+
+        // Apply symptom maxes
+        if (symptomMax.fatigue !== undefined) entry.fatigue = symptomMax.fatigue;
+        if (symptomMax.anxiety !== undefined) entry.anxiety = symptomMax.anxiety;
+        if (symptomMax.depression !== undefined) entry.depression = symptomMax.depression;
+        if (symptomMax.irritability !== undefined) entry.irritability = symptomMax.irritability;
+        if (symptomMax.concentration !== undefined) entry.concentration = symptomMax.concentration;
+        if (symptomMax.lowbp !== undefined) entry.lowbp = symptomMax.lowbp;
+        if (symptomMax.headache !== undefined) { entry.headache = symptomMax.headache; entry.headache_yn = 1; }
+        if (symptomMax.stomach !== undefined) entry.stomach = symptomMax.stomach;
+        if (symptomMax.fog !== undefined) entry.fog = symptomMax.fog;
+        // Constipation/diarrhea: binary (was present at all)
+        if (symptomMax.constipation_sev !== undefined) entry.constipation = 1;
+        if (symptomMax.diarrhea_sev !== undefined) entry.diarrhea = 1;
+
+        if (!ex) entries.push(entry);
+        imported++;
+      });
+
+      saveEntries(entries);
+      statusEl.textContent = `Imported ${imported} days of Bearable data successfully.`;
+      evt.target.value = '';
+      showToast('Bearable data imported!');
+    } catch(err) {
+      document.getElementById('bearable-import-status').textContent = 'Error parsing file: ' + err.message;
+    }
+  };
+  reader.readAsText(file);
+}
 
 function importGarmin(evt){
   const file=evt.target.files[0]; if(!file) return;
