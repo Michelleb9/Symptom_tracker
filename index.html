@@ -2,12 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Health Log</title>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <style>
 :root {
@@ -184,7 +187,7 @@ html,body{min-height:100%;background:var(--bg);font-family:'Nunito',sans-serif;c
       <div class="yn-row"><span class="yn-label">High stress day</span><div class="yn-chips"><button class="yn-chip on-no" id="stress-no" onclick="setYN('stress',false)">No</button><button class="yn-chip" id="stress-yes" onclick="setYN('stress',true)">Yes</button></div></div>
     </div>
 
-    <button class="save-btn" onclick="saveEntry()">Save today's entry ✓</button>
+    <button class="save-btn" onclick="saveEntry()">Save today&#39;s entry</button>
   </div>
 
   <!-- HISTORY -->
@@ -345,7 +348,7 @@ function saveEntry(){
   };
   const arr=getEntries().filter(x=>x.date!==e.date);
   arr.push(e); saveEntries(arr);
-  showToast('Entry saved! ✓');
+  showToast('Entry saved!');
 }
 
 function showToast(msg){
