@@ -127,6 +127,12 @@ html,body{min-height:100%;background:var(--bg);font-family:'Nunito',sans-serif;c
 .toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(40px);background:var(--accent);color:white;padding:11px 24px;border-radius:24px;font-size:14px;font-weight:800;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s;z-index:999;pointer-events:none;opacity:0;}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
 .empty{text-align:center;padding:3rem 1rem;color:var(--t3);font-size:14px;font-weight:600;}
+.num-input{width:100%;background:rgba(255,255,255,0.06);border:1.5px solid rgba(255,255,255,0.12);border-radius:var(--radius-sm);padding:10px 14px;font-family:'Nunito',sans-serif;font-size:16px;font-weight:700;color:var(--t1);outline:none;transition:border-color 0.15s;}
+.num-input:focus{border-color:var(--c-beh);}
+.num-input::placeholder{color:var(--t3);font-weight:500;}
+.multi-choice{display:flex;flex-wrap:wrap;gap:7px;}
+.mc-btn{font-size:13px;font-weight:700;padding:7px 14px;border-radius:20px;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:var(--t2);cursor:pointer;font-family:'Nunito',sans-serif;transition:all 0.15s;}
+.mc-btn.active{background:rgba(52,211,153,0.18);border-color:var(--c-beh);color:var(--c-beh);}
 </style>
 </head>
 <body>
@@ -173,10 +179,53 @@ html,body{min-height:100%;background:var(--bg);font-family:'Nunito',sans-serif;c
 
     <div class="cat-card beh">
       <div class="cat-header"><span class="cat-icon">🌿</span><span class="cat-title">Behaviours</span></div>
-      <div class="metric-row"><div class="metric-label">Sleep duration (hrs)</div><div class="dot-scale beh" id="ds-sleep" data-min="3" data-max="12"></div></div>
+
+      <div class="metric-row">
+        <div class="metric-label">Sleep duration (hrs)</div>
+        <input class="num-input" type="number" id="ni-sleep" min="0" max="24" step="0.5" placeholder="e.g. 7.5">
+      </div>
       <div class="metric-row"><div class="metric-label">Sleep quality</div><div class="dot-scale beh" id="ds-sleepq"></div></div>
-      <div class="metric-row"><div class="metric-label">Exercise (×30 min)</div><div class="dot-scale beh" id="ds-exercise" data-max="6"></div></div>
-      <div class="metric-row"><div class="metric-label">Caffeine (×50 mg)</div><div class="dot-scale beh" id="ds-caffeine" data-max="8"></div></div>
+
+      <div class="yn-row">
+        <span class="yn-label">Nap today?</span>
+        <div class="yn-chips"><button class="yn-chip on-no" id="nap-no" onclick="setYN('nap',false)">No</button><button class="yn-chip" id="nap-yes" onclick="setYN('nap',true)">Yes</button></div>
+      </div>
+      <div class="cond-block" id="nap-cond">
+        <div class="metric-row" style="padding-top:10px;">
+          <div class="metric-label">Nap duration (min)</div>
+          <input class="num-input" type="number" id="ni-nap" min="0" max="300" step="5" placeholder="e.g. 30">
+        </div>
+      </div>
+
+      <div class="metric-row" style="margin-top:10px;">
+        <div class="metric-label">Exercise (min)</div>
+        <input class="num-input" type="number" id="ni-exercise" min="0" max="600" step="5" placeholder="e.g. 45">
+      </div>
+      <div class="metric-row">
+        <div class="metric-label">Exercise type</div>
+        <div class="multi-choice" id="mc-exercise">
+          <button class="mc-btn" data-val="walk" onclick="setMC('exercise',this)">Walk</button>
+          <button class="mc-btn" data-val="run" onclick="setMC('exercise',this)">Run</button>
+          <button class="mc-btn" data-val="weights" onclick="setMC('exercise',this)">Weight lifting</button>
+          <button class="mc-btn" data-val="other" onclick="setMC('exercise',this)">Other</button>
+        </div>
+      </div>
+
+      <div class="yn-row" style="margin-top:6px;">
+        <span class="yn-label">Coffee today?</span>
+        <div class="yn-chips"><button class="yn-chip on-no" id="coffee-no" onclick="setYN('coffee',false)">No</button><button class="yn-chip" id="coffee-yes" onclick="setYN('coffee',true)">Yes</button></div>
+      </div>
+      <div class="cond-block" id="coffee-cond">
+        <div class="metric-row" style="padding-top:10px;">
+          <div class="metric-label">Coffee type</div>
+          <div class="multi-choice" id="mc-coffee">
+            <button class="mc-btn" data-val="iced_capp" onclick="setMC('coffee',this)">Iced capp</button>
+            <button class="mc-btn" data-val="homemade_latte" onclick="setMC('coffee',this)">Homemade latte</button>
+            <button class="mc-btn" data-val="other" onclick="setMC('coffee',this)">Other</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <div class="cat-card other">
@@ -285,10 +334,7 @@ const DS_CONFIG={
   'ds-irritability': {max:10,def:2},
   'ds-fog':          {max:10,def:2},
   'ds-concentration':{max:10,def:2},
-  'ds-sleep':        {min:3,max:12,def:7},
   'ds-sleepq':       {max:10,def:6},
-  'ds-exercise':     {max:6,def:0},
-  'ds-caffeine':     {max:8,def:2},
 };
 
 function makeDotScale(id,cfg){
@@ -316,6 +362,8 @@ const YN_IDS={
   headache:     {yes:'hd-yes',   no:'hd-no'},
   constipation: {yes:'const-yes',no:'const-no'},
   diarrhea:     {yes:'diarr-yes',no:'diarr-no'},
+  nap:          {yes:'nap-yes',  no:'nap-no'},
+  coffee:       {yes:'coffee-yes',no:'coffee-no'},
   medication:   {yes:'med-yes',  no:'med-no'},
   period:       {yes:'period-yes',no:'period-no'},
   spotting:     {yes:'spotting-yes',no:'spotting-no'},
@@ -327,8 +375,19 @@ function setYN(key,val){
   document.getElementById(m.yes).className='yn-chip'+(val?' on-yes':'');
   document.getElementById(m.no).className='yn-chip'+(!val?' on-no':'');
   if(key==='headache') document.getElementById('hd-cond').classList.toggle('open',val);
+  if(key==='nap')      document.getElementById('nap-cond').classList.toggle('open',val);
+  if(key==='coffee')   document.getElementById('coffee-cond').classList.toggle('open',val);
 }
 Object.keys(YN_IDS).forEach(k=>setYN(k,false));
+
+const MC_VALS={exercise:null,coffee:null};
+function setMC(group,btn){
+  const container=document.getElementById('mc-'+group);
+  container.querySelectorAll('.mc-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  MC_VALS[group]=btn.dataset.val;
+}
+function getNum(id){const v=parseFloat(document.getElementById(id).value);return isNaN(v)?0:v;}
 
 function getEntries(){try{return JSON.parse(localStorage.getItem(SK)||'[]');}catch{return[];}}
 function saveEntries(a){localStorage.setItem(SK,JSON.stringify(a));}
@@ -342,8 +401,10 @@ function saveEntry(){
     constipation:YN.constipation?1:0,diarrhea:YN.diarrhea?1:0,
     mood:getDot('mood'),anxiety:getDot('anxiety'),depression:getDot('depression'),irritability:getDot('irritability'),
     fog:getDot('fog'),concentration:getDot('concentration'),
-    sleep:getDot('sleep'),sleepq:getDot('sleepq'),
-    exercise:getDot('exercise')*30,caffeine:getDot('caffeine')*50,
+    sleep:getNum('ni-sleep'),sleepq:getDot('sleepq'),
+    nap:YN.nap?1:0,nap_min:YN.nap?getNum('ni-nap'):0,
+    exercise:getNum('ni-exercise'),exercise_type:MC_VALS.exercise||'',
+    coffee:YN.coffee?1:0,coffee_type:YN.coffee?(MC_VALS.coffee||''):'',
     medication:YN.medication?1:0,period:YN.period?1:0,spotting:YN.spotting?1:0,stress:YN.stress?1:0,
   };
   const arr=getEntries().filter(x=>x.date!==e.date);
@@ -464,8 +525,8 @@ function renderTrendChart(entries){
   });
 }
 
-const BK=['sleep','sleepq','exercise','caffeine','stress','medication'];
-const BL=['Sleep hrs','Sleep quality','Exercise','Caffeine','Stress','Medication'];
+const BK=['sleep','sleepq','exercise','nap','coffee','stress','medication'];
+const BL=['Sleep hrs','Sleep quality','Exercise','Nap','Coffee','Stress','Medication'];
 const SK2=['fatigue','mood','anxiety','depression','irritability','fog','concentration','headache','stomach','lowbp'];
 const SL=['Fatigue','Mood','Anxiety','Depression','Irritability','Brain fog','Conc.','Headache','Stomach','Low BP'];
 
